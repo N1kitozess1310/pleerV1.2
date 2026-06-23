@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Моя Волна Player</title>
+<style>
+body{margin:0;background:#0f1117;color:#fff;font-family:Arial;overflow:hidden}
+.bg{position:fixed;inset:0;overflow:hidden}
+.blob{position:absolute;width:500px;height:500px;border-radius:50%;filter:blur(120px);opacity:.6}
+.b1{background:#ff0066;left:-100px;top:0}
+.b2{background:#00cfff;right:-100px;bottom:0}
+.content{position:relative;z-index:2;height:100vh;display:flex;flex-direction:column}
+.header{padding:15px 20px;font-size:28px}
+.library{flex:1;overflow:auto;padding:20px 20px 140px 20px;width:340px}
+.track{padding:12px;margin:8px 0;background:rgba(255,255,255,.08);border-radius:12px;cursor:pointer}
+.center{position:absolute;inset:0;display:flex;justify-content:center;align-items:center;pointer-events:none;flex-direction:column}
+.cover{width:220px;height:220px;border-radius:50%;background:linear-gradient(45deg,#ff0066,#00cfff);box-shadow:0 0 80px #ff0066}
+#vis{position:absolute}
+.player{position:fixed;left:20px;right:20px;bottom:20px;background:rgba(255,255,255,.08);backdrop-filter:blur(20px);padding:15px;border-radius:20px;z-index:3}
+audio,input{width:100%}
+.info{text-align:center;margin-top:15px}
+</style>
+</head>
+<body>
+<div class="bg"><div class="blob b1"></div><div class="blob b2"></div></div>
+
+<div class="content">
+<div class="header">🎵 Моя Волна</div>
+<div style="padding:0 20px"><input type="file" id="files" accept="audio/*" multiple></div>
+<div class="library" id="library"></div>
+</div>
+
+<div class="center">
+<canvas id="vis" width="500" height="500"></canvas>
+<div class="cover" id="cover"></div>
+<div class="info"><h2 id="title">Загрузите музыку</h2></div>
+</div>
+
+<div class="player">
+<audio id="audio" controls></audio>
+</div>
+
+<script>
+const files=document.getElementById('files');
+const library=document.getElementById('library');
+const audio=document.getElementById('audio');
+const titleEl=document.getElementById('title');
+const cover=document.getElementById('cover');
+const ctx=document.getElementById('vis').getContext('2d');
+
+let tracks=[], analyser, data;
+
+files.onchange=e=>{
+ for(const f of e.target.files){
+   tracks.push({name:f.name,url:URL.createObjectURL(f)});
+ }
+ render();
+};
+
+function render(){
+ library.innerHTML='';
+ tracks.forEach(t=>{
+  const d=document.createElement('div');
+  d.className='track';
+  d.textContent='🎵 '+t.name;
+  d.onclick=()=>playTrack(t);
+  library.appendChild(d);
+ });
+}
+
+function playTrack(t){
+ audio.src=t.url;
+ audio.play();
+ titleEl.textContent=t.name.replace(/\..+$/,'');
+
+ if(!analyser){
+   const ac=new AudioContext();
+   const src=ac.createMediaElementSource(audio);
+   analyser=ac.createAnalyser();
+   analyser.fftSize=256;
+   src.connect(analyser);
+   analyser.connect(ac.destination);
+   data=new Uint8Array(analyser.frequencyBinCount);
+   animate();
+ }
+}
+
+function animate(){
+ requestAnimationFrame(animate);
+ if(!analyser) return;
+
+ analyser.getByteFrequencyData(data);
+ const bass=data[2]||0;
+ const hue=(Date.now()/30)%360;
+
+ cover.style.transform=`scale(${1+bass/500})`;
+ cover.style.boxShadow=`0 0 ${80+bass}px hsl(${hue},100%,50%)`;
+ document.querySelector('.bg').style.background=
+   `radial-gradient(circle,hsl(${hue},100%,50%),#0f1117)`;
+
+ ctx.clearRect(0,0,500,500);
+ ctx.save();
+ ctx.translate(250,250);
+
+ for(let i=0;i<128;i++){
+   let a=i*Math.PI/64;
+   let r=130+(data[i]||0)/2;
+   ctx.strokeStyle=`hsl(${hue+i*2},100%,50%)`;
+   ctx.beginPath();
+   ctx.moveTo(Math.cos(a)*120,Math.sin(a)*120);
+   ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);
+   ctx.stroke();
+ }
+ ctx.restore();
+}
+</script>
+</body>
+</html>

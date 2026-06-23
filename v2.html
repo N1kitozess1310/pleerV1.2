@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Моя Волна Mini</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#10131a;color:#fff;font-family:Arial;overflow:hidden}
+#bg{position:fixed;inset:0;background:radial-gradient(circle,#ff0066,#10131a);transition:1s}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:280px;padding:15px;background:rgba(0,0,0,.25);overflow:auto}
+.search,input{width:100%;padding:10px;border:none;border-radius:10px;margin-top:10px}
+.track{padding:10px;background:rgba(255,255,255,.08);border-radius:10px;margin-top:8px;cursor:pointer}
+.main{margin-left:280px;height:100vh;display:flex;justify-content:center;align-items:center;flex-direction:column}
+.cover{width:220px;height:220px;border-radius:50%;background:linear-gradient(45deg,#ff0066,#00ccff);box-shadow:0 0 80px #ff0066}
+.player{position:fixed;left:300px;right:20px;bottom:20px;padding:15px;border-radius:20px;background:rgba(255,255,255,.08)}
+button{padding:10px;margin-right:5px}
+canvas{position:absolute}
+</style>
+</head>
+<body>
+<div id="bg"></div>
+
+<div class="sidebar">
+<h2>🎵 Моя Волна</h2>
+<input type="file" id="files" multiple accept="audio/*">
+<input class="search" id="search" placeholder="Поиск">
+<div id="library"></div>
+</div>
+
+<div class="main">
+<canvas id="vis" width="500" height="500"></canvas>
+<div class="cover" id="cover"></div>
+<h2 id="title">Выберите музыку</h2>
+</div>
+
+<div class="player">
+<button onclick="prev()">⏮</button>
+<button onclick="toggle()">⏯</button>
+<button onclick="next()">⏭</button>
+<button onclick="shuffle()">🔀</button>
+<audio id="audio" style="width:100%"></audio>
+</div>
+
+<script>
+let tracks=[],current=0,analyser,data;
+const audio=document.getElementById("audio");
+const ctx=vis.getContext("2d");
+
+files.onchange=e=>{
+for(let f of e.target.files){
+tracks.push({name:f.name,url:URL.createObjectURL(f)});
+}
+draw();
+};
+
+function draw(arr=tracks){
+library.innerHTML="";
+arr.forEach((t,i)=>{
+let d=document.createElement("div");
+d.className="track";
+d.innerHTML="🎵 "+t.name;
+d.onclick=()=>play(i);
+library.appendChild(d);
+});
+}
+
+function play(i){
+current=i;
+audio.src=tracks[i].url;
+audio.play();
+title.innerText=tracks[i].name;
+
+if(!analyser){
+const ac=new AudioContext();
+const src=ac.createMediaElementSource(audio);
+analyser=ac.createAnalyser();
+analyser.fftSize=256;
+src.connect(analyser);
+analyser.connect(ac.destination);
+data=new Uint8Array(analyser.frequencyBinCount);
+animate();
+}
+}
+
+function next(){if(tracks.length)play((current+1)%tracks.length)}
+function prev(){if(tracks.length)play((current-1+tracks.length)%tracks.length)}
+function toggle(){audio.paused?audio.play():audio.pause()}
+function shuffle(){if(tracks.length)play(Math.floor(Math.random()*tracks.length))}
+audio.onended=next;
+
+search.oninput=e=>draw(tracks.filter(t=>t.name.toLowerCase().includes(e.target.value.toLowerCase())));
+
+function animate(){
+requestAnimationFrame(animate);
+analyser.getByteFrequencyData(data);
+let bass=data[2]||0;
+let hue=(Date.now()/25)%360;
+
+cover.style.transform=`scale(${1+bass/500})`;
+cover.style.boxShadow=`0 0 ${80+bass}px hsl(${hue},100%,50%)`;
+bg.style.background=`radial-gradient(circle,hsl(${hue},100%,50%),#10131a)`;
+
+ctx.clearRect(0,0,500,500);
+ctx.save();
+ctx.translate(250,250);
+for(let i=0;i<128;i++){
+let a=i*Math.PI/64;
+let r=130+(data[i]||0)/2;
+ctx.strokeStyle=`hsl(${hue+i},100%,50%)`;
+ctx.beginPath();
+ctx.moveTo(Math.cos(a)*120,Math.sin(a)*120);
+ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);
+ctx.stroke();
+}
+ctx.restore();
+}
+</script>
+</body>
+</html>
